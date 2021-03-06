@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31005.135
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CryptoSigner", "CryptoSigner\CryptoSigner.csproj", "{CD00EA65-1608-4ED3-AF96-317961799F04}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CryptoSignerConsole", "CryptoSignerConsole\CryptoSignerConsole.csproj", "{CBFF810B-B5E7-46C4-95CC-8C965968655A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CD00EA65-1608-4ED3-AF96-317961799F04}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CD00EA65-1608-4ED3-AF96-317961799F04}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CD00EA65-1608-4ED3-AF96-317961799F04}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CD00EA65-1608-4ED3-AF96-317961799F04}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CBFF810B-B5E7-46C4-95CC-8C965968655A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CBFF810B-B5E7-46C4-95CC-8C965968655A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CBFF810B-B5E7-46C4-95CC-8C965968655A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CBFF810B-B5E7-46C4-95CC-8C965968655A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {43E82259-E78D-48AF-8A27-A516C4B50472}
+	EndGlobalSection
+EndGlobal
