@@ -13,15 +13,15 @@ namespace CryptoSigner
 {
 	public static class CryptoSign
 	{
-        /// <summary>
-        /// Возвращается файл подписанный подписью с указанным CN
-        /// </summary>
-        /// <param name="message"></param>
-        /// <param name="subject"></param>
-        /// <returns></returns>
-		public static XmlDocument GetSignedMessage(XmlDocument message, string subject)
+		/// <summary>
+		/// Возвращается файл подписанный подписью с указанным отпечатком
+		/// </summary>
+		/// <param name="message"></param>
+		/// <param name="thumbprint"></param>
+		/// <returns></returns>
+		public static XmlDocument GetSignedMessage(XmlDocument message, string thumbprint)
 		{
-			X509Certificate2 certificate = FindCertificate(subject);
+			X509Certificate2 certificate = FindCertificate(thumbprint);
 			if (certificate == null)
 				throw new Exception("Не найден сертификат");
 			// Получаем секретный ключ.
@@ -32,107 +32,134 @@ namespace CryptoSigner
 			return message;
 		}
 
+		/// <summary>
+		/// Возвращается подпись сообщения подписанного сертификатом с указанным отпечатком
+		/// </summary>
+		/// <param name="message"></param>
+		/// <param name="thumbprint"></param>
+		/// <returns></returns>
+		public static SignedXml GetSignature(XmlDocument message, string thumbprint)
+		{
+			X509Certificate2 certificate = FindCertificate(thumbprint);
+			if (certificate == null)
+				throw new Exception("Не найден сертификат");
+			// Получаем секретный ключ.
+			AsymmetricAlgorithm Key = certificate.PrivateKey;
+
+			return GetSignature(message, Key, certificate);
+		}
+
 		// Поиск сертификата в хранилище MY
-		private static X509Certificate2 FindCertificate(string subject)
+		private static X509Certificate2 FindCertificate(string thumbprint)
 		{
 			X509Store store = new X509Store("My", StoreLocation.CurrentUser);
 			store.Open(OpenFlags.OpenExistingOnly | OpenFlags.ReadOnly);
 
 			// Ищем сертификат и ключ для подписи.
 			X509Certificate2Collection found =
-				store.Certificates.Find(X509FindType.FindBySubjectName,
-					subject, false);
+				store.Certificates.Find(X509FindType.FindByThumbprint,
+					thumbprint, false);
 
 			// Проверяем, что нашли ровно один сертификат.
 			if (found.Count == 0)
 			{
-				throw new Exception($"Сертификат {subject} не найден.");
+				throw new Exception($"Сертификат {thumbprint} не найден.");
 				return null;
 			}
 
 			if (found.Count > 1)
 			{
-				throw new Exception($"Найдено больше одного сертификата {subject} для подписи.");
+				throw new Exception($"Найдено больше одного сертификата {thumbprint} для подписи.");
 			}
 
 			return found[0];
 		}
-        // Подписывает XML документ и сохраняем подпись в документе.
-        private static void SignXmlDocument(ref XmlDocument doc,
-            AsymmetricAlgorithm Key, X509Certificate Certificate)
-        {
-            // Создаем объект SignedXml по XML документу.
-            SignedXml signedXml = new SignedXml(doc);
+		// Подписывает XML документ и сохраняем подпись в документе.
+		private static void SignXmlDocument(ref XmlDocument doc,
+			AsymmetricAlgorithm Key, X509Certificate Certificate)
+		{
 
-            // Добавляем ключ в SignedXml документ. 
-            signedXml.SigningKey = Key;
+			// Получаем XML представление подписи и сохраняем его 
+			// в отдельном node.
+			var xmlDigitalSignature = GetSignature(doc, Key, Certificate);
 
-            // Создаем ссылку на node для подписи.
-            // При подписи всего документа проставляем "".
-            Reference reference = new Reference();
-            reference.Uri = "";
+			// Добавляем node подписи в XML документ.
+			doc.DocumentElement.AppendChild(doc.ImportNode(
+				xmlDigitalSignature.GetXml(), true));
+		}
 
-            // Явно проставляем алгоритм хэширования,
-            // по умолчанию SHA1.
-            reference.DigestMethod =
-                CPSignedXml.XmlDsigGost3411Url;
+		// Подписывает XML документ и сохраняем подпись в документе.
+		private static SignedXml GetSignature(XmlDocument doc,
+			AsymmetricAlgorithm Key, X509Certificate Certificate)
+		{
+			// Создаем объект SignedXml по XML документу.
+			SignedXml signedXml = new SignedXml(doc);
 
-            // Добавляем transform на подписываемые данные
-            // для удаления вложенной подписей, не только
-            // собственной.
-            XmlDsigXPathTransform xpath = CreateXPathTransform();
-            reference.AddTransform(xpath);
+			// Добавляем ключ в SignedXml документ. 
+			signedXml.SigningKey = Key;
 
-            // Добавляем ссылку на подписываемые данные
-            signedXml.AddReference(reference);
+			// Создаем ссылку на node для подписи.
+			// При подписи всего документа проставляем "".
+			Reference reference = new Reference();
+			reference.Uri = "";
 
-            // Создаем объект KeyInfo.
-            KeyInfo keyInfo = new KeyInfo();
+			// Явно проставляем алгоритм хэширования,
+			// по умолчанию SHA1.
+			reference.DigestMethod =
+				CPSignedXml.XmlDsigGost3411Url;
 
-            // Добавляем сертификат в KeyInfo
-            keyInfo.AddClause(new KeyInfoX509Data(Certificate));
+			// Добавляем transform на подписываемые данные
+			// для удаления вложенной подписей, не только
+			// собственной.
+			XmlDsigXPathTransform xpath = CreateXPathTransform();
+			reference.AddTransform(xpath);
 
-            // Добавляем KeyInfo в SignedXml.
-            signedXml.KeyInfo = keyInfo;
+			// Добавляем ссылку на подписываемые данные
+			signedXml.AddReference(reference);
 
-            // Можно явно проставить алгоритм подписи: ГОСТ Р 34.10.
-            // Если сертификат ключа подписи ГОСТ Р 34.10
-            // и алгоритм ключа подписи не задан, то будет использован
-            // XmlDsigGost3410Url
-            // signedXml.SignedInfo.SignatureMethod =
-            //     CPSignedXml.XmlDsigGost3410Url;
+			// Создаем объект KeyInfo.
+			KeyInfo keyInfo = new KeyInfo();
 
-            // Вычисляем подпись.
-            signedXml.ComputeSignature();
+			// Добавляем сертификат в KeyInfo
+			keyInfo.AddClause(new KeyInfoX509Data(Certificate));
 
-            // Получаем XML представление подписи и сохраняем его 
-            // в отдельном node.
-            XmlElement xmlDigitalSignature = signedXml.GetXml();
+			// Добавляем KeyInfo в SignedXml.
+			signedXml.KeyInfo = keyInfo;
 
-            // Добавляем node подписи в XML документ.
-            doc.DocumentElement.AppendChild(doc.ImportNode(
-                xmlDigitalSignature, true));
-        }
-        
-        // Создаем XML transform.
-        private static XmlDsigXPathTransform CreateXPathTransform()
-        {
-	        // Создаем новый XMLDocument.
-	        XmlDocument doc = new XmlDocument();
+			// Можно явно проставить алгоритм подписи: ГОСТ Р 34.10.
+			// Если сертификат ключа подписи ГОСТ Р 34.10
+			// и алгоритм ключа подписи не задан, то будет использован
+			// XmlDsigGost3410Url
+			// signedXml.SignedInfo.SignatureMethod =
+			//     CPSignedXml.XmlDsigGost3410Url;
 
-	        // Создаем новый XmlElement.
-	        doc.LoadXml("<XPath xmlns:dsig=\"http://www.w3.org/2000/09/xmldsig#\">"
-	                    + "not(ancestor-or-self::dsig:Signature)</XPath>");
-	        XmlElement xPathElem = (XmlElement)doc.SelectSingleNode("/XPath");
+			// Вычисляем подпись.
+			signedXml.ComputeSignature();
 
-	        // Создаем новый объект XmlDsigXPathTransform.
-	        XmlDsigXPathTransform xForm = new XmlDsigXPathTransform();
+			// Получаем XML представление подписи и сохраняем его 
+			// в отдельном node.
+			return signedXml;
+		}
+		
+		// Создаем XML transform.
+		private static XmlDsigXPathTransform CreateXPathTransform()
+		{
+			// Создаем новый XMLDocument.
+			XmlDocument doc = new XmlDocument();
 
-	        // Загружаем XPath XML из элемента. 
-	        xForm.LoadInnerXml(xPathElem.SelectNodes("."));
+			// Создаем новый XmlElement.
+			doc.LoadXml("<XPath xmlns:dsig=\"http://www.w3.org/2000/09/xmldsig#\">"
+						+ "not(ancestor-or-self::dsig:Signature)</XPath>");
+			XmlElement xPathElem = (XmlElement)doc.SelectSingleNode("/XPath");
 
-	        // Возвращаем XML, осуществляющий преобразование.
-	        return xForm;
-        }
-    }
+			// Создаем новый объект XmlDsigXPathTransform.
+			XmlDsigXPathTransform xForm = new XmlDsigXPathTransform();
+
+			// Загружаем XPath XML из элемента. 
+			xForm.LoadInnerXml(xPathElem.SelectNodes("."));
+
+			// Возвращаем XML, осуществляющий преобразование.
+			return xForm;
+		}
+	}
 }
